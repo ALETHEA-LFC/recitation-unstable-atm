@@ -74,3 +74,90 @@ TEST_CASE("Example: Print Prompt Ledger", "[ex-3]") {
   atm.PrintLedger("./prompt.txt", 12345678, 1234);
   REQUIRE(CompareFiles("./ex-1.txt", "./prompt.txt"));
 }
+
+TEST_CASE("RegisterAccount: duplicate throws", "[register]") {
+  Atm atm;
+  atm.RegisterAccount(1111, 2222, "Alice", 500.0);
+  REQUIRE_THROWS_AS(atm.RegisterAccount(1111, 2222, "Bob", 100.0),
+                    std::invalid_argument);
+}
+TEST_CASE("WithdrawCash: invalid account throws", "[withdraw-1]") {
+  Atm atm;
+  REQUIRE_THROWS_AS(atm.WithdrawCash(9999, 0000, 100.0), std::invalid_argument);
+}
+
+TEST_CASE("WithdrawCash: negative amount throws", "[withdraw-2]") {
+  Atm atm;
+  atm.RegisterAccount(3333, 4444, "Bob", 1000.0);
+  REQUIRE_THROWS_AS(atm.WithdrawCash(3333, 4444, -50.0), std::invalid_argument);
+}
+
+TEST_CASE("WithdrawCash: overdraw throws runtime_error", "[withdraw-3]") {
+  Atm atm;
+  atm.RegisterAccount(3333, 4444, "Bob", 100.0);
+  REQUIRE_THROWS_AS(atm.WithdrawCash(3333, 4444, 200.0), std::runtime_error);
+}
+
+TEST_CASE("WithdrawCash: transaction recorded", "[withdraw-4]") {
+  Atm atm;
+  atm.RegisterAccount(3333, 4444, "Bob", 1000.0);
+  atm.WithdrawCash(3333, 4444, 200.0);
+  auto& txns = atm.GetTransactions();
+  REQUIRE(txns[{3333, 4444}].size() == 1);
+}
+TEST_CASE("DepositCash: negative amount throws", "[deposit-1]") {
+  Atm atm;
+  atm.RegisterAccount(5555, 6666, "Carol", 200.0);
+  REQUIRE_THROWS_AS(atm.DepositCash(5555, 6666, -50.0), std::invalid_argument);
+}
+
+TEST_CASE("DepositCash: invalid account throws", "[deposit-2]") {
+  Atm atm;
+  REQUIRE_THROWS_AS(atm.DepositCash(9999, 0000, 100.0), std::invalid_argument);
+}
+
+TEST_CASE("DepositCash: balance updated", "[deposit-3]") {
+  Atm atm;
+  atm.RegisterAccount(5555, 6666, "Carol", 200.0);
+  atm.DepositCash(5555, 6666, 300.0);
+  REQUIRE(atm.CheckBalance(5555, 6666) == 500.0);
+}
+
+TEST_CASE("DepositCash: transaction recorded", "[deposit-4]") {
+  Atm atm;
+  atm.RegisterAccount(5555, 6666, "Carol", 200.0);
+  atm.DepositCash(5555, 6666, 300.0);
+  auto& txns = atm.GetTransactions();
+  REQUIRE(txns[{5555, 6666}].size() == 1);
+}
+TEST_CASE("PrintLedger: invalid account throws", "[ledger-1]") {
+  Atm atm;
+  REQUIRE_THROWS_AS(atm.PrintLedger("test.txt", 9999, 0000),
+                    std::invalid_argument);
+}
+
+TEST_CASE("PrintLedger: format check", "[ledger-2]") {
+  Atm atm;
+  atm.RegisterAccount(12345678, 1234, "Sam Sepiol", 300.30);
+  atm.WithdrawCash(12345678, 1234, 200.40);
+  atm.DepositCash(12345678, 1234, 40000.00);
+  atm.DepositCash(12345678, 1234, 32000.00);
+  atm.PrintLedger("./ledger_test.txt", 12345678, 1234);
+
+  std::ifstream file("./ledger_test.txt");
+  REQUIRE(file.is_open());
+
+  std::string line;
+
+  std::getline(file, line);
+  REQUIRE(line == "Name: Sam Sepiol");
+
+  std::getline(file, line);
+  REQUIRE(line == "Card Number: 12345678");
+
+  std::getline(file, line);
+  REQUIRE(line == "PIN: 1234");
+
+  std::getline(file, line);
+  REQUIRE(line == "----------------------------");
+}
